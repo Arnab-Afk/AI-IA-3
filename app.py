@@ -4,6 +4,8 @@ import numpy as np
 import plotly.graph_objects as go
 import plotly.express as px
 import pandas as pd
+import requests
+import json
 
 # ── Page config ──────────────────────────────────────────────
 st.set_page_config(
@@ -82,7 +84,7 @@ FEATURE_INFO = {
 with st.sidebar:
     st.image("https://img.icons8.com/color/96/heart-with-pulse.png", width=72)
     st.title("Navigation")
-    page = st.radio("Go to", ["🔮 Predict", "📊 Compare & What-If", "📖 About Features", "How We Built It"],
+    page = st.radio("Go to", ["🔮 Predict", "📊 Compare & What-If", "📖 About Features", "How We Built It", "Symptom Chat"],
                     label_visibility="collapsed")
     st.divider()
     st.caption("Model: Best of RF / XGBoost (UCI Heart Disease)")
@@ -587,4 +589,163 @@ AI-IA-3/
   feature_distributions.png     # Per-feature histograms
   venv/                         # Python virtual environment
 """, language="text")
+
+# ─────────────────────────────────────────────────────────────
+# PAGE 5 – SYMPTOM CHAT
+# ─────────────────────────────────────────────────────────────
+elif page == "Symptom Chat":
+    AI_BASE_URL = "http://localhost:8082"
+    AI_MODEL    = "gemini-3-flash"
+
+    SYSTEM_PROMPT = """You are a knowledgeable cardiology assistant. Your role is to:
+1. Listen to the patient's symptoms and clinical details they describe.
+2. Ask clarifying questions about relevant cardiac risk factors (age, blood pressure, chest pain type, cholesterol, heart rate, exercise tolerance, family history, smoking, diabetes, etc.).
+3. Based on what they share, provide an educational assessment of potential heart disease risk.
+4. Map symptoms to the clinical features used in the UCI Heart Disease dataset where possible:
+   - Chest pain type (typical angina, atypical angina, non-anginal, asymptomatic)
+   - Resting blood pressure, cholesterol levels
+   - Fasting blood sugar, resting ECG findings
+   - Maximum heart rate, exercise-induced angina
+   - ST depression, number of major vessels
+5. Suggest whether the patient should use the Predict page with specific values.
+6. Always remind the user this is educational only and not a medical diagnosis. Recommend consulting a doctor.
+
+Keep responses clear, empathetic, and concise. Use bullet points for lists."""
+
+    st.title("Symptom Chat")
+    st.markdown(
+        "Describe your symptoms or clinical details in plain language. "
+        "The AI will help assess your cardiac risk and guide you to the right inputs for the predictor."
+    )
+    st.caption("Powered by AI via local proxy at localhost:8082 — for educational use only, not a medical diagnosis.")
+
+    # ── Session state ─────────────────────────────────────────
+    if "chat_history" not in st.session_state:
+        st.session_state.chat_history = []
+
+    # Clear button
+    if st.button("Clear conversation", type="secondary"):
+        st.session_state.chat_history = []
+        st.rerun()
+
+    st.divider()
+
+    # ── Render existing messages ──────────────────────────────
+    for msg in st.session_state.chat_history:
+        with st.chat_message(msg["role"]):
+            st.markdown(msg["content"])
+
+    # ── Starter suggestions ───────────────────────────────────
+    if not st.session_state.chat_history:
+        st.markdown("**Try asking:**")
+        suggestions = [
+            "I have chest pain when I exercise and my BP is 150/90",
+            "I'm 58 years old, male, with high cholesterol of 280 mg/dl",
+            "I get shortness of breath climbing stairs, no chest pain",
+            "My fasting sugar is high and I feel my heart racing sometimes",
+        ]
+        cols = st.columns(2)
+        for i, s in enumerate(suggestions):
+            if cols[i % 2].button(s, key=f"sug_{i}", use_container_width=True):
+                st.session_state.chat_history.append({"role": "user", "content": s})
+                st.rerun()
+
+    # ── Chat input ────────────────────────────────────────────
+    user_input = st.chat_input("Describe your symptoms, age, blood pressure, chest pain...")
+
+    if user_input:
+        st.session_state.chat_history.append({"role": "user", "content": user_input})
+        with st.chat_message("user"):
+            st.markdown(user_input)
+
+        # ── Call AI via localhost:8082 ────────────────────────
+        with st.chat_message("assistant"):
+            placeholder = st.empty()
+            full_response = ""
+            error_occurred = False
+
+            try:
+                messages_payload = [
+                    {"role": m["role"], "content": m["content"]}
+                    for m in st.session_state.chat_history
+                ]
+
+                payload = {
+                    "model":      AI_MODEL,
+                    "max_tokens": 1024,
+                    "system":     SYSTEM_PROMPT,
+                    "messages":   messages_payload,
+                    "stream":     True,
+                }
+
+                headers = {
+                    "Content-Type":      "application/json",
+                    "x-api-key":         "local-proxy",
+                    "anthropic-version": "2023-06-01",
+                }
+
+                with requests.post(
+                    f"{AI_BASE_URL}/v1/messages",
+                    headers=headers,
+                    json=payload,
+                    stream=True,
+                    timeout=60,
+                ) as resp:
+                    if resp.status_code != 200:
+                        error_occurred = True
+                        full_response = (
+                            f"Error from AI proxy: HTTP {resp.status_code}. "
+                            f"Make sure the proxy is running at {AI_BASE_URL}.\n\n"
+                            f"Details: {resp.text[:300]}"
+                        )
+                    else:
+                        for line in resp.iter_lines():
+                            if not line:
+                                continue
+                            line = line.decode("utf-8") if isinstance(line, bytes) else line
+                            if line.startswith("data:"):
+                                data_str = line[5:].strip()
+                                if data_str == "[DONE]":
+                                    break
+                                try:
+                                    data = json.loads(data_str)
+                                    event_type = data.get("type", "")
+                                    if event_type == "content_block_delta":
+                                        delta = data.get("delta", {})
+                                        if delta.get("type") == "text_delta":
+                                            full_response += delta.get("text", "")
+                                            placeholder.markdown(full_response + "▌")
+                                    elif event_type == "message_stop":
+                                        break
+                                except json.JSONDecodeError:
+                                    pass
+
+            except requests.exceptions.ConnectionError:
+                error_occurred = True
+                full_response = (
+                    f"Could not connect to AI proxy at **{AI_BASE_URL}**.\n\n"
+                    "Make sure the proxy server is running:\n"
+                    "```\nnpm start\n```"
+                )
+            except requests.exceptions.Timeout:
+                error_occurred = True
+                full_response = "Request timed out. The AI proxy may be busy — please try again."
+            except Exception as e:
+                error_occurred = True
+                full_response = f"Unexpected error: {str(e)}"
+
+            placeholder.markdown(full_response)
+
+        st.session_state.chat_history.append({
+            "role":    "assistant",
+            "content": full_response,
+        })
+
+    # ── Disclaimer ────────────────────────────────────────────
+    st.divider()
+    st.warning(
+        "This chat is for educational purposes only. "
+        "It does not constitute medical advice. "
+        "Always consult a qualified healthcare professional for diagnosis and treatment."
+    )
 
