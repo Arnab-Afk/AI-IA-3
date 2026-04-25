@@ -84,7 +84,7 @@ FEATURE_INFO = {
 with st.sidebar:
     st.image("https://img.icons8.com/color/96/heart-with-pulse.png", width=72)
     st.title("Navigation")
-    page = st.radio("Go to", ["🔮 Predict", "📊 Compare & What-If", "📖 About Features", "How We Built It", "Symptom Chat"],
+    page = st.radio("Go to", ["🔮 Predict", "Compare & What-If", "About Features", "How We Built It", "Symptom Chat"],
                     label_visibility="collapsed")
     st.divider()
     st.caption("Model: Best of RF / XGBoost (UCI Heart Disease)")
@@ -594,6 +594,9 @@ AI-IA-3/
 # PAGE 5 – SYMPTOM CHAT
 # ─────────────────────────────────────────────────────────────
 elif page == "Symptom Chat":
+    import traceback
+    import time
+
     AI_BASE_URL = "http://localhost:8082"
     AI_MODEL    = "gemini-3-flash"
 
@@ -612,21 +615,50 @@ elif page == "Symptom Chat":
 
 Keep responses clear, empathetic, and concise. Use bullet points for lists."""
 
-    st.title("Symptom Chat")
-    st.markdown(
-        "Describe your symptoms or clinical details in plain language. "
-        "The AI will help assess your cardiac risk and guide you to the right inputs for the predictor."
-    )
-    st.caption("Powered by AI via local proxy at localhost:8082 — for educational use only, not a medical diagnosis.")
-
     # ── Session state ─────────────────────────────────────────
     if "chat_history" not in st.session_state:
         st.session_state.chat_history = []
+    if "chat_logs" not in st.session_state:
+        st.session_state.chat_logs = []
 
-    # Clear button
-    if st.button("Clear conversation", type="secondary"):
-        st.session_state.chat_history = []
-        st.rerun()
+    def add_log(level, msg):
+        ts = time.strftime("%H:%M:%S")
+        st.session_state.chat_logs.append(f"[{ts}] [{level}] {msg}")
+
+    # ── Header row ────────────────────────────────────────────
+    hcol1, hcol2, hcol3 = st.columns([4, 1, 1])
+    with hcol1:
+        st.title("Symptom Chat")
+    with hcol2:
+        show_debug = st.toggle("Debug logs", value=False)
+    with hcol3:
+        if st.button("Clear", type="secondary", use_container_width=True):
+            st.session_state.chat_history = []
+            st.session_state.chat_logs = []
+            st.rerun()
+
+    # ── Connection status ─────────────────────────────────────
+    try:
+        ping = requests.get(f"{AI_BASE_URL}/health", timeout=2)
+        status_ok = ping.status_code < 500
+        status_code = ping.status_code
+    except Exception as ping_err:
+        status_ok = False
+        status_code = str(ping_err)
+
+    if status_ok:
+        st.success(f"AI proxy reachable at {AI_BASE_URL}  (HTTP {status_code})")
+        add_log("INFO", f"Proxy health check OK — HTTP {status_code}")
+    else:
+        st.error(f"AI proxy NOT reachable at {AI_BASE_URL} — {status_code}. Make sure the proxy is running (`npm start`).")
+        add_log("ERROR", f"Proxy health check FAILED — {status_code}")
+
+    st.caption(f"Model: `{AI_MODEL}`  |  Endpoint: `{AI_BASE_URL}/v1/messages`  |  Educational use only.")
+
+    # ── Debug panel ───────────────────────────────────────────
+    if show_debug and st.session_state.chat_logs:
+        with st.expander("Debug / Request Logs", expanded=True):
+            st.code("\n".join(st.session_state.chat_logs), language="text")
 
     st.divider()
 
@@ -635,7 +667,7 @@ Keep responses clear, empathetic, and concise. Use bullet points for lists."""
         with st.chat_message(msg["role"]):
             st.markdown(msg["content"])
 
-    # ── Starter suggestions ───────────────────────────────────
+    # ── Starter suggestions (only when empty) ─────────────────
     if not st.session_state.chat_history:
         st.markdown("**Try asking:**")
         suggestions = [
@@ -648,6 +680,7 @@ Keep responses clear, empathetic, and concise. Use bullet points for lists."""
         for i, s in enumerate(suggestions):
             if cols[i % 2].button(s, key=f"sug_{i}", use_container_width=True):
                 st.session_state.chat_history.append({"role": "user", "content": s})
+                add_log("INFO", f"Suggestion selected: {s[:60]}")
                 st.rerun()
 
     # ── Chat input ────────────────────────────────────────────
@@ -655,35 +688,40 @@ Keep responses clear, empathetic, and concise. Use bullet points for lists."""
 
     if user_input:
         st.session_state.chat_history.append({"role": "user", "content": user_input})
+        add_log("INFO", f"User message: {user_input[:80]}")
+
         with st.chat_message("user"):
             st.markdown(user_input)
 
-        # ── Call AI via localhost:8082 ────────────────────────
         with st.chat_message("assistant"):
             placeholder = st.empty()
             full_response = ""
-            error_occurred = False
+            raw_lines = []
+
+            messages_payload = [
+                {"role": m["role"], "content": m["content"]}
+                for m in st.session_state.chat_history
+            ]
+
+            payload = {
+                "model":      AI_MODEL,
+                "max_tokens": 1024,
+                "system":     SYSTEM_PROMPT,
+                "messages":   messages_payload,
+                "stream":     True,
+            }
+
+            headers = {
+                "Content-Type":      "application/json",
+                "x-api-key":         "local-proxy",
+                "anthropic-version": "2023-06-01",
+            }
+
+            add_log("INFO", f"POST {AI_BASE_URL}/v1/messages  model={AI_MODEL}  msgs={len(messages_payload)}")
+            add_log("DEBUG", f"Payload: {json.dumps(payload)[:400]}")
 
             try:
-                messages_payload = [
-                    {"role": m["role"], "content": m["content"]}
-                    for m in st.session_state.chat_history
-                ]
-
-                payload = {
-                    "model":      AI_MODEL,
-                    "max_tokens": 1024,
-                    "system":     SYSTEM_PROMPT,
-                    "messages":   messages_payload,
-                    "stream":     True,
-                }
-
-                headers = {
-                    "Content-Type":      "application/json",
-                    "x-api-key":         "local-proxy",
-                    "anthropic-version": "2023-06-01",
-                }
-
+                t0 = time.time()
                 with requests.post(
                     f"{AI_BASE_URL}/v1/messages",
                     headers=headers,
@@ -691,61 +729,105 @@ Keep responses clear, empathetic, and concise. Use bullet points for lists."""
                     stream=True,
                     timeout=60,
                 ) as resp:
+                    add_log("INFO", f"HTTP {resp.status_code}  headers: {dict(list(resp.headers.items())[:6])}")
+
                     if resp.status_code != 200:
-                        error_occurred = True
+                        body = resp.text[:600]
+                        add_log("ERROR", f"Non-200 response body: {body}")
                         full_response = (
-                            f"Error from AI proxy: HTTP {resp.status_code}. "
-                            f"Make sure the proxy is running at {AI_BASE_URL}.\n\n"
-                            f"Details: {resp.text[:300]}"
+                            f"**Error — HTTP {resp.status_code}** from AI proxy.\n\n"
+                            f"```\n{body}\n```\n\n"
+                            f"Enable **Debug logs** (toggle top-right) for details."
                         )
                     else:
-                        for line in resp.iter_lines():
-                            if not line:
+                        chunk_count = 0
+                        for raw_line in resp.iter_lines():
+                            if not raw_line:
                                 continue
-                            line = line.decode("utf-8") if isinstance(line, bytes) else line
-                            if line.startswith("data:"):
-                                data_str = line[5:].strip()
-                                if data_str == "[DONE]":
-                                    break
-                                try:
-                                    data = json.loads(data_str)
-                                    event_type = data.get("type", "")
-                                    if event_type == "content_block_delta":
-                                        delta = data.get("delta", {})
-                                        if delta.get("type") == "text_delta":
-                                            full_response += delta.get("text", "")
-                                            placeholder.markdown(full_response + "▌")
-                                    elif event_type == "message_stop":
-                                        break
-                                except json.JSONDecodeError:
-                                    pass
+                            line = raw_line.decode("utf-8") if isinstance(raw_line, bytes) else raw_line
+                            raw_lines.append(line)
 
-            except requests.exceptions.ConnectionError:
-                error_occurred = True
+                            if not line.startswith("data:"):
+                                add_log("DEBUG", f"Non-data SSE line: {line[:120]}")
+                                continue
+
+                            data_str = line[5:].strip()
+                            if data_str == "[DONE]":
+                                add_log("INFO", "SSE stream ended with [DONE]")
+                                break
+
+                            try:
+                                data = json.loads(data_str)
+                                event_type = data.get("type", "")
+                                add_log("DEBUG", f"SSE event: {event_type}  raw: {data_str[:120]}")
+
+                                if event_type == "content_block_delta":
+                                    delta = data.get("delta", {})
+                                    if delta.get("type") == "text_delta":
+                                        chunk = delta.get("text", "")
+                                        full_response += chunk
+                                        chunk_count += 1
+                                        placeholder.markdown(full_response + "▌")
+
+                                elif event_type == "message_delta":
+                                    stop_reason = data.get("delta", {}).get("stop_reason")
+                                    add_log("INFO", f"message_delta stop_reason={stop_reason}")
+
+                                elif event_type == "message_stop":
+                                    add_log("INFO", "message_stop received")
+                                    break
+
+                                elif event_type == "error":
+                                    err_msg = data.get("error", {})
+                                    add_log("ERROR", f"SSE error event: {err_msg}")
+                                    full_response += f"\n\n**Stream error:** {err_msg}"
+                                    break
+
+                            except json.JSONDecodeError as jex:
+                                add_log("WARN", f"JSON decode failed on: {data_str[:120]}  err={jex}")
+
+                        elapsed = time.time() - t0
+                        add_log("INFO", f"Done. chunks={chunk_count}  chars={len(full_response)}  time={elapsed:.2f}s")
+
+                        # If nothing came back despite 200, show raw lines for diagnosis
+                        if not full_response.strip():
+                            raw_dump = "\n".join(raw_lines[:30])
+                            add_log("WARN", f"Empty response. First 30 raw SSE lines:\n{raw_dump}")
+                            full_response = (
+                                "**No text received from the AI.** The proxy returned HTTP 200 but no text chunks.\n\n"
+                                "Enable **Debug logs** to inspect raw SSE lines."
+                            )
+
+            except requests.exceptions.ConnectionError as ce:
+                add_log("ERROR", f"ConnectionError: {ce}")
                 full_response = (
-                    f"Could not connect to AI proxy at **{AI_BASE_URL}**.\n\n"
-                    "Make sure the proxy server is running:\n"
-                    "```\nnpm start\n```"
+                    f"**Cannot connect to AI proxy at `{AI_BASE_URL}`.**\n\n"
+                    "Start the proxy:\n```\nnpm start\n```"
                 )
             except requests.exceptions.Timeout:
-                error_occurred = True
-                full_response = "Request timed out. The AI proxy may be busy — please try again."
-            except Exception as e:
-                error_occurred = True
-                full_response = f"Unexpected error: {str(e)}"
+                add_log("ERROR", "Request timed out after 60s")
+                full_response = "**Request timed out** (60s). The proxy may be overloaded — please try again."
+            except Exception as ex:
+                tb = traceback.format_exc()
+                add_log("ERROR", f"Unexpected exception: {ex}\n{tb}")
+                full_response = (
+                    f"**Unexpected error:** `{ex}`\n\n"
+                    "Enable **Debug logs** for the full traceback."
+                )
 
             placeholder.markdown(full_response)
 
-        st.session_state.chat_history.append({
-            "role":    "assistant",
-            "content": full_response,
-        })
+            # Show debug inline if toggle is on
+            if show_debug:
+                with st.expander("Raw SSE lines from this response", expanded=False):
+                    st.code("\n".join(raw_lines[:50]) if raw_lines else "(none)", language="text")
+
+        st.session_state.chat_history.append({"role": "assistant", "content": full_response})
 
     # ── Disclaimer ────────────────────────────────────────────
     st.divider()
     st.warning(
-        "This chat is for educational purposes only. "
-        "It does not constitute medical advice. "
+        "This chat is for educational purposes only and does not constitute medical advice. "
         "Always consult a qualified healthcare professional for diagnosis and treatment."
     )
 
