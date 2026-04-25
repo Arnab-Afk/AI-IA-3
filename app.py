@@ -82,7 +82,7 @@ FEATURE_INFO = {
 with st.sidebar:
     st.image("https://img.icons8.com/color/96/heart-with-pulse.png", width=72)
     st.title("Navigation")
-    page = st.radio("Go to", ["🔮 Predict", "📊 Compare & What-If", "📖 About Features"],
+    page = st.radio("Go to", ["🔮 Predict", "📊 Compare & What-If", "📖 About Features", "How We Built It"],
                     label_visibility="collapsed")
     st.divider()
     st.caption("Model: Best of RF / XGBoost (UCI Heart Disease)")
@@ -405,4 +405,186 @@ elif page == "📖 About Features":
                      labels={"Importance": "Relative Importance"})
     fig_imp.update_layout(height=420, margin=dict(t=10, b=10), coloraxis_showscale=False)
     st.plotly_chart(fig_imp, use_container_width=True)
+
+# ─────────────────────────────────────────────────────────────
+# PAGE 4 – HOW WE BUILT IT
+# ─────────────────────────────────────────────────────────────
+elif page == "How We Built It":
+    st.title("How We Built It")
+    st.markdown("A full walkthrough of the dataset, preprocessing, models, and deployment behind this app.")
+
+    st.divider()
+
+    # ── 1. Problem Statement
+    st.subheader("1. Problem Statement")
+    st.markdown("""
+    The goal was to build a **multiclass classification** model that predicts the severity of
+    heart disease in a patient — not just whether they have it, but **how severe** it is.
+
+    The target variable has 5 levels:
+    | Level | Meaning |
+    |---|---|
+    | 0 | No Disease |
+    | 1 | Mild |
+    | 2 | Moderate |
+    | 3 | Severe |
+    | 4 | Very Severe |
+    """)
+
+    st.divider()
+
+    # ── 2. Dataset
+    st.subheader("2. Dataset")
+    st.markdown("""
+    We used the **UCI Heart Disease dataset** (ID 45), fetched via the `ucimlrepo` Python library.
+
+    - **303 patient records**, 13 clinical features
+    - Originally sourced from the Cleveland Clinic Foundation
+    - Features include age, sex, chest pain type, resting blood pressure, cholesterol,
+      fasting blood sugar, resting ECG, max heart rate, exercise-induced angina,
+      ST depression, ST slope, number of major vessels, and thalassemia type
+    """)
+
+    col1, col2 = st.columns(2)
+    with col1:
+        st.markdown("**Class distribution (original)**")
+        dist_df = pd.DataFrame({
+            "Severity": ["0 - No Disease", "1 - Mild", "2 - Moderate", "3 - Severe", "4 - Very Severe"],
+            "Count":    [164, 55, 36, 35, 13]
+        })
+        fig_dist = px.bar(dist_df, x="Severity", y="Count",
+                          color="Count", color_continuous_scale="reds",
+                          text="Count")
+        fig_dist.update_traces(textposition="outside")
+        fig_dist.update_layout(showlegend=False, height=300,
+                               margin=dict(t=10, b=10), coloraxis_showscale=False)
+        st.plotly_chart(fig_dist, use_container_width=True)
+    with col2:
+        st.markdown("**Class imbalance problem**")
+        st.markdown("""
+        The dataset is heavily skewed toward class 0 (no disease).
+        Classes 3 and 4 have very few samples, making the classification harder.
+
+        We addressed this using **SMOTE** (Synthetic Minority Over-sampling Technique)
+        from the `imbalanced-learn` library, which generates synthetic samples for
+        minority classes to balance training data.
+        """)
+
+    st.divider()
+
+    # ── 3. Preprocessing
+    st.subheader("3. Data Preprocessing")
+    steps = [
+        ("Missing value handling",
+         "Rows with more than 2 missing values were dropped. Remaining nulls were filled with the column median."),
+        ("Train / test split",
+         "80% training, 20% testing with stratification to preserve class proportions."),
+        ("Feature scaling",
+         "StandardScaler was applied to normalize all 13 features to zero mean and unit variance. "
+         "The fitted scaler is saved as scaler.pkl and used at inference time."),
+        ("SMOTE oversampling",
+         "Applied only to the training set after splitting to avoid data leakage. "
+         "k_neighbors=1 was used because some minority classes had very few samples."),
+    ]
+    for title, detail in steps:
+        with st.expander(title):
+            st.write(detail)
+
+    st.divider()
+
+    # ── 4. Models
+    st.subheader("4. Models Trained")
+    st.markdown("Three classifiers were trained and compared:")
+
+    m1, m2, m3 = st.columns(3)
+    with m1:
+        st.markdown("**Logistic Regression** (Baseline)")
+        st.markdown("""
+        - Solver: `lbfgs`
+        - Max iterations: 1000
+        - Trained on SMOTE-balanced data
+        - Used as a simple linear baseline
+        """)
+    with m2:
+        st.markdown("**Random Forest**")
+        st.markdown("""
+        - 200 decision trees
+        - `class_weight='balanced'`
+        - Trained on SMOTE-balanced data
+        - Captures non-linear feature interactions
+        """)
+    with m3:
+        st.markdown("**XGBoost**")
+        st.markdown("""
+        - 200 estimators, max depth 4
+        - Learning rate: 0.1
+        - Objective: `multi:softmax`
+        - Trained on SMOTE-balanced data
+        - Best overall performer
+        """)
+
+    st.divider()
+
+    # ── 5. Evaluation
+    st.subheader("5. Model Evaluation")
+    st.markdown("""
+    Models were evaluated on the held-out test set using:
+    - **Accuracy**
+    - **Classification report** (precision, recall, F1 per class)
+    - **Confusion matrix** (visualized as heatmaps)
+    - **Cross-validation** (5-fold) for generalization check
+    """)
+
+    results_df = pd.DataFrame({
+        "Model":    ["Logistic Regression", "Random Forest", "XGBoost"],
+        "Accuracy": ["~55%", "~62%", "~65%"],
+        "Notes":    [
+            "Struggles with non-linear boundaries",
+            "Better recall on minority classes",
+            "Best balance of precision and recall"
+        ]
+    })
+    st.table(results_df)
+
+    st.markdown("""
+    > The best model was saved as **best_heart_disease_model.pkl** and is loaded by this app at startup.
+    """)
+
+    st.divider()
+
+    # ── 6. Tech Stack
+    st.subheader("6. Tech Stack")
+    tech = [
+        ("Python 3",           "Core language"),
+        ("scikit-learn",       "Logistic Regression, Random Forest, preprocessing, metrics"),
+        ("XGBoost",            "Gradient boosted tree classifier"),
+        ("imbalanced-learn",   "SMOTE oversampling"),
+        ("ucimlrepo",          "Fetching the UCI Heart Disease dataset"),
+        ("pandas / numpy",     "Data manipulation"),
+        ("matplotlib / seaborn","EDA plots in the notebook"),
+        ("Streamlit",          "Web application framework"),
+        ("Plotly",             "Interactive charts in the app"),
+        ("joblib",             "Saving and loading model/scaler artifacts"),
+        ("systemd + Nginx",    "Production deployment on Linux server"),
+    ]
+    tech_df = pd.DataFrame(tech, columns=["Library / Tool", "Purpose"])
+    st.table(tech_df)
+
+    st.divider()
+
+    # ── 7. Project Structure
+    st.subheader("7. Project File Structure")
+    st.code("""
+AI-IA-3/
+  AI_IA_3.ipynb                 # Full EDA, training, evaluation notebook
+  app.py                        # This Streamlit application
+  best_heart_disease_model.pkl  # Saved best classifier
+  scaler.pkl                    # Fitted StandardScaler
+  confusion_matrices.png        # Confusion matrix comparison plot
+  feature_importance.png        # XGBoost feature importance plot
+  class_distribution.png        # Class balance chart
+  correlation_heatmap.png       # Feature correlation heatmap
+  feature_distributions.png     # Per-feature histograms
+  venv/                         # Python virtual environment
+""", language="text")
 
