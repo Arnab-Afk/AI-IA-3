@@ -84,7 +84,7 @@ FEATURE_INFO = {
 with st.sidebar:
     st.image("https://img.icons8.com/color/96/heart-with-pulse.png", width=72)
     st.title("Navigation")
-    page = st.radio("Go to", ["🔮 Predict", "Compare & What-If", "About Features", "How We Built It", "Symptom Chat"],
+    page = st.radio("Go to", ["Predict", "Compare & What-If", "About Features", "How We Built It", "Symptom Chat"],
                     label_visibility="collapsed")
     st.divider()
     st.caption("Model: Best of RF / XGBoost (UCI Heart Disease)")
@@ -93,11 +93,11 @@ with st.sidebar:
 # ─────────────────────────────────────────────────────────────
 # PAGE 1 – PREDICT
 # ─────────────────────────────────────────────────────────────
-if page == "🔮 Predict":
+if page == "Predict":
     st.title("❤️ Heart Disease Severity Predictor")
     st.markdown("Fill in the patient's clinical details, then hit **Predict**.")
 
-    with st.expander("ℹ️  How to use", expanded=False):
+    with st.expander("How to use", expanded=False):
         st.markdown("""
         1. Adjust the sliders and dropdowns in the two columns below.
         2. Click **Predict Severity**.
@@ -109,7 +109,7 @@ if page == "🔮 Predict":
         col1, col2 = st.columns(2)
 
         with col1:
-            st.markdown('<p class="section-header">👤 Patient Demographics</p>', unsafe_allow_html=True)
+            st.markdown('<p class="section-header">Patient Demographics</p>', unsafe_allow_html=True)
             age = st.slider("Age", min_value=20, max_value=100, value=55, help="Patient age in years")
             sex = st.radio("Sex", options=[0, 1], format_func=lambda x: "Female" if x == 0 else "Male",
                            horizontal=True)
@@ -120,7 +120,7 @@ if page == "🔮 Predict":
             fbs = st.radio("Fasting Blood Sugar > 120 mg/dl", [0, 1],
                            format_func=lambda x: "No" if x == 0 else "Yes", horizontal=True)
 
-            st.markdown('<p class="section-header">🩺 Clinical Findings</p>', unsafe_allow_html=True)
+            st.markdown('<p class="section-header">Clinical Findings</p>', unsafe_allow_html=True)
             restecg = st.selectbox("Resting ECG Results",
                                    options=[0, 1, 2],
                                    format_func=lambda x: {0: "Normal",
@@ -128,7 +128,7 @@ if page == "🔮 Predict":
                                                            2: "Left Ventricular Hypertrophy"}[x])
 
         with col2:
-            st.markdown('<p class="section-header">🏃 Exercise Test</p>', unsafe_allow_html=True)
+            st.markdown('<p class="section-header">Exercise Test</p>', unsafe_allow_html=True)
             cp = st.selectbox("Chest Pain Type",
                               options=[1, 2, 3, 4],
                               format_func=lambda x: {1: "Typical Angina",
@@ -146,7 +146,7 @@ if page == "🔮 Predict":
                                                         2: "Flat",
                                                         3: "Downsloping"}[x])
 
-            st.markdown('<p class="section-header">🔬 Imaging</p>', unsafe_allow_html=True)
+            st.markdown('<p class="section-header">Imaging</p>', unsafe_allow_html=True)
             ca = st.select_slider("Major Vessels Colored (ca)", options=[0, 1, 2, 3])
             thal = st.selectbox("Thalassemia",
                                 options=[3, 6, 7],
@@ -154,7 +154,7 @@ if page == "🔮 Predict":
                                                        6: "Fixed Defect",
                                                        7: "Reversible Defect"}[x])
 
-        submitted = st.form_submit_button("🔮 Predict Severity", type="primary", use_container_width=True)
+        submitted = st.form_submit_button("Predict Severity", type="primary", use_container_width=True)
 
     # ── Results ───────────────────────────────────────────────
     if submitted:
@@ -170,7 +170,7 @@ if page == "🔮 Predict":
         st.divider()
         # Severity banner
         st.markdown(
-            f'<div class="risk-card risk-{prediction}">⚕️ Predicted Severity: '
+            f'<div class="risk-card risk-{prediction}">Predicted Severity: '
             f'Level {prediction} — {label} &nbsp;|&nbsp; Confidence: {confidence:.1f}%</div>',
             unsafe_allow_html=True,
         )
@@ -227,17 +227,17 @@ if page == "🔮 Predict":
             st.plotly_chart(fig_bar, use_container_width=True)
 
         # Risk factor summary
-        st.subheader("📋 Risk Factor Summary")
+        st.subheader("Risk Factor Summary")
         flags = []
-        if trestbps > 140:    flags.append(("🔴 High Resting BP",      f"{trestbps} mm Hg (normal ≤ 140)"))
-        if chol > 240:        flags.append(("🔴 High Cholesterol",      f"{chol} mg/dl (desirable < 200)"))
-        if fbs == 1:          flags.append(("🟡 Elevated Fasting Sugar", "Fasting glucose > 120 mg/dl"))
-        if exang == 1:        flags.append(("🔴 Exercise Angina",        "Chest pain during exercise"))
-        if cp == 4:           flags.append(("🟡 Asymptomatic Chest Pain","Silent ischemia risk"))
-        if oldpeak > 2.0:     flags.append(("🔴 ST Depression",          f"oldpeak = {oldpeak:.1f} (elevated)"))
-        if ca >= 2:           flags.append(("🔴 Multiple Vessel Disease", f"{ca} vessels affected"))
-        if thal == 7:         flags.append(("🔴 Reversible Thal Defect",  "Indicator of ischemia"))
-        if thalach < 120:     flags.append(("🟡 Low Max Heart Rate",      f"{thalach} bpm (low exercise capacity)"))
+        if trestbps > 140:    flags.append(("High Resting BP",      f"{trestbps} mm Hg (normal ≤ 140)"))
+        if chol > 240:        flags.append(("High Cholesterol",      f"{chol} mg/dl (desirable < 200)"))
+        if fbs == 1:          flags.append(("Elevated Fasting Sugar", "Fasting glucose > 120 mg/dl"))
+        if exang == 1:        flags.append(("Exercise Angina",        "Chest pain during exercise"))
+        if cp == 4:           flags.append(("Asymptomatic Chest Pain","Silent ischemia risk"))
+        if oldpeak > 2.0:     flags.append(("ST Depression",          f"oldpeak = {oldpeak:.1f} (elevated)"))
+        if ca >= 2:           flags.append(("Multiple Vessel Disease", f"{ca} vessels affected"))
+        if thal == 7:         flags.append(("Reversible Thal Defect",  "Indicator of ischemia"))
+        if thalach < 120:     flags.append(("Low Max Heart Rate",      f"{thalach} bpm (low exercise capacity)"))
 
         if flags:
             fcols = st.columns(3)
@@ -245,10 +245,10 @@ if page == "🔮 Predict":
                 with fcols[i % 3]:
                     st.markdown(f"**{title}**  \n{detail}")
         else:
-            st.success("✅ No major risk flags detected based on the entered values.")
+            st.success("No major risk flags detected based on the entered values.")
 
         # Radar chart – patient profile vs typical ranges
-        st.subheader("🕸️ Patient Profile Radar")
+        st.subheader("Patient Profile Radar")
         norm_vals = {
             "Age":       age / 100,
             "BP":        (trestbps - 80) / 140,
@@ -279,8 +279,8 @@ if page == "🔮 Predict":
 # ─────────────────────────────────────────────────────────────
 # PAGE 2 – COMPARE & WHAT-IF
 # ─────────────────────────────────────────────────────────────
-elif page == "📊 Compare & What-If":
-    st.title("📊 Compare Scenarios & What-If Analysis")
+elif page == "Compare & What-If":
+    st.title("Compare Scenarios & What-If Analysis")
     st.markdown("Build two patient profiles side-by-side and see how the prediction changes.")
 
     def patient_inputs(key_prefix, defaults):
@@ -322,14 +322,14 @@ elif page == "📊 Compare & What-If":
     col_a, col_b = st.columns(2)
 
     with col_a:
-        st.subheader("🔵 Patient A")
+        st.subheader("Patient A")
         pa = patient_inputs("a", [45, 0, 2, 120, 200, 0, 0, 170, 0, 0.5, 1, 0, 3])
 
     with col_b:
-        st.subheader("🔴 Patient B")
+        st.subheader("Patient B")
         pb = patient_inputs("b", [65, 1, 4, 160, 300, 1, 1, 110, 1, 3.5, 3, 3, 7])
 
-    if st.button("⚖️ Compare Both Patients", type="primary", use_container_width=True):
+    if st.button("Compare Both Patients", type="primary", use_container_width=True):
         results = []
         for label_pat, feat in [("Patient A", pa), ("Patient B", pb)]:
             arr    = np.array([feat])
@@ -364,8 +364,8 @@ elif page == "📊 Compare & What-If":
 # ─────────────────────────────────────────────────────────────
 # PAGE 3 – ABOUT FEATURES
 # ─────────────────────────────────────────────────────────────
-elif page == "📖 About Features":
-    st.title("📖 Feature Reference Guide")
+elif page == "About Features":
+    st.title("Feature Reference Guide")
     st.markdown("Understand each clinical input used by the model.")
 
     normal_ranges = {
@@ -394,7 +394,7 @@ elif page == "📖 About Features":
             st.caption(FEATURE_INFO[feat][1])
 
     st.divider()
-    st.subheader("📌 Feature Importance (from XGBoost)")
+    st.subheader("Feature Importance (from XGBoost)")
     importances = {
         "thal": 0.21, "ca": 0.18, "cp": 0.14, "oldpeak": 0.12,
         "thalach": 0.09, "age": 0.07, "chol": 0.05, "trestbps": 0.04,
@@ -597,8 +597,8 @@ elif page == "Symptom Chat":
     import traceback
     import time
 
-    AI_BASE_URL = "http://localhost:8082"
-    AI_MODEL    = "gemini-3-flash"
+    OLLAMA_URL = "http://localhost:11434"
+    OLLAMA_MODEL = "gemma3:4b"
 
     SYSTEM_PROMPT = """You are a knowledgeable cardiology assistant. Your role is to:
 1. Listen to the patient's symptoms and clinical details they describe.
@@ -637,23 +637,33 @@ Keep responses clear, empathetic, and concise. Use bullet points for lists."""
             st.session_state.chat_logs = []
             st.rerun()
 
-    # ── Connection status ─────────────────────────────────────
+    # ── Ollama connection status ───────────────────────────────
     try:
-        ping = requests.get(f"{AI_BASE_URL}/health", timeout=2)
-        status_ok = ping.status_code < 500
-        status_code = ping.status_code
+        ping = requests.get(f"{OLLAMA_URL}/api/tags", timeout=3)
+        if ping.status_code == 200:
+            available_models = [m["name"] for m in ping.json().get("models", [])]
+            model_present = any(OLLAMA_MODEL in m for m in available_models)
+            add_log("INFO", f"Ollama reachable. Models: {available_models}")
+            if model_present:
+                st.success(f"Ollama running — model `{OLLAMA_MODEL}` ready.")
+            else:
+                st.warning(
+                    f"Ollama is running but `{OLLAMA_MODEL}` is not pulled yet. "
+                    f"Run: `ollama pull {OLLAMA_MODEL}`\n\n"
+                    f"Available: {', '.join(available_models) or 'none'}"
+                )
+                add_log("WARN", f"Model {OLLAMA_MODEL} not in {available_models}")
+        else:
+            st.error(f"Ollama returned HTTP {ping.status_code}.")
+            add_log("ERROR", f"Ollama /api/tags returned {ping.status_code}")
     except Exception as ping_err:
-        status_ok = False
-        status_code = str(ping_err)
+        st.error(
+            f"Cannot reach Ollama at `{OLLAMA_URL}`. "
+            "Install and start it: `ollama serve`"
+        )
+        add_log("ERROR", f"Ollama ping failed: {ping_err}")
 
-    if status_ok:
-        st.success(f"AI proxy reachable at {AI_BASE_URL}  (HTTP {status_code})")
-        add_log("INFO", f"Proxy health check OK — HTTP {status_code}")
-    else:
-        st.error(f"AI proxy NOT reachable at {AI_BASE_URL} — {status_code}. Make sure the proxy is running (`npm start`).")
-        add_log("ERROR", f"Proxy health check FAILED — {status_code}")
-
-    st.caption(f"Model: `{AI_MODEL}`  |  Endpoint: `{AI_BASE_URL}/v1/messages`  |  Educational use only.")
+    st.caption(f"Model: `{OLLAMA_MODEL}`  |  Ollama: `{OLLAMA_URL}`  |  Educational use only.")
 
     # ── Debug panel ───────────────────────────────────────────
     if show_debug and st.session_state.chat_logs:
@@ -696,48 +706,36 @@ Keep responses clear, empathetic, and concise. Use bullet points for lists."""
         with st.chat_message("assistant"):
             placeholder = st.empty()
             full_response = ""
-            raw_lines = []
 
-            messages_payload = [
-                {"role": m["role"], "content": m["content"]}
-                for m in st.session_state.chat_history
-            ]
+            # Build Ollama messages (prepend system as first message)
+            ollama_messages = [{"role": "system", "content": SYSTEM_PROMPT}]
+            for m in st.session_state.chat_history:
+                ollama_messages.append({"role": m["role"], "content": m["content"]})
 
             payload = {
-                "model":      AI_MODEL,
-                "max_tokens": 1024,
-                "system":     SYSTEM_PROMPT,
-                "messages":   messages_payload,
-                "stream":     True,
+                "model":    OLLAMA_MODEL,
+                "messages": ollama_messages,
+                "stream":   True,
             }
 
-            headers = {
-                "Content-Type":      "application/json",
-                "x-api-key":         "local-proxy",
-                "anthropic-version": "2023-06-01",
-            }
-
-            add_log("INFO", f"POST {AI_BASE_URL}/v1/messages  model={AI_MODEL}  msgs={len(messages_payload)}")
-            add_log("DEBUG", f"Payload: {json.dumps(payload)[:400]}")
+            add_log("INFO", f"POST {OLLAMA_URL}/api/chat  model={OLLAMA_MODEL}  msgs={len(ollama_messages)}")
 
             try:
                 t0 = time.time()
                 with requests.post(
-                    f"{AI_BASE_URL}/v1/messages",
-                    headers=headers,
+                    f"{OLLAMA_URL}/api/chat",
                     json=payload,
                     stream=True,
-                    timeout=60,
+                    timeout=120,
                 ) as resp:
-                    add_log("INFO", f"HTTP {resp.status_code}  headers: {dict(list(resp.headers.items())[:6])}")
+                    add_log("INFO", f"HTTP {resp.status_code}")
 
                     if resp.status_code != 200:
                         body = resp.text[:600]
-                        add_log("ERROR", f"Non-200 response body: {body}")
+                        add_log("ERROR", f"Non-200 body: {body}")
                         full_response = (
-                            f"**Error — HTTP {resp.status_code}** from AI proxy.\n\n"
-                            f"```\n{body}\n```\n\n"
-                            f"Enable **Debug logs** (toggle top-right) for details."
+                            f"**Error — HTTP {resp.status_code}** from Ollama.\n\n"
+                            f"```\n{body}\n```"
                         )
                     else:
                         chunk_count = 0
@@ -745,82 +743,48 @@ Keep responses clear, empathetic, and concise. Use bullet points for lists."""
                             if not raw_line:
                                 continue
                             line = raw_line.decode("utf-8") if isinstance(raw_line, bytes) else raw_line
-                            raw_lines.append(line)
-
-                            if not line.startswith("data:"):
-                                add_log("DEBUG", f"Non-data SSE line: {line[:120]}")
-                                continue
-
-                            data_str = line[5:].strip()
-                            if data_str == "[DONE]":
-                                add_log("INFO", "SSE stream ended with [DONE]")
-                                break
-
                             try:
-                                data = json.loads(data_str)
-                                event_type = data.get("type", "")
-                                add_log("DEBUG", f"SSE event: {event_type}  raw: {data_str[:120]}")
-
-                                if event_type == "content_block_delta":
-                                    delta = data.get("delta", {})
-                                    if delta.get("type") == "text_delta":
-                                        chunk = delta.get("text", "")
-                                        full_response += chunk
-                                        chunk_count += 1
-                                        placeholder.markdown(full_response + "▌")
-
-                                elif event_type == "message_delta":
-                                    stop_reason = data.get("delta", {}).get("stop_reason")
-                                    add_log("INFO", f"message_delta stop_reason={stop_reason}")
-
-                                elif event_type == "message_stop":
-                                    add_log("INFO", "message_stop received")
+                                data = json.loads(line)
+                                chunk = data.get("message", {}).get("content", "")
+                                if chunk:
+                                    full_response += chunk
+                                    chunk_count += 1
+                                    placeholder.markdown(full_response + "▌")
+                                if data.get("done"):
+                                    add_log("INFO", f"Stream done. total_duration={data.get('total_duration')}")
                                     break
-
-                                elif event_type == "error":
-                                    err_msg = data.get("error", {})
-                                    add_log("ERROR", f"SSE error event: {err_msg}")
-                                    full_response += f"\n\n**Stream error:** {err_msg}"
-                                    break
-
                             except json.JSONDecodeError as jex:
-                                add_log("WARN", f"JSON decode failed on: {data_str[:120]}  err={jex}")
+                                add_log("WARN", f"JSON decode failed: {line[:120]}  err={jex}")
 
                         elapsed = time.time() - t0
                         add_log("INFO", f"Done. chunks={chunk_count}  chars={len(full_response)}  time={elapsed:.2f}s")
 
-                        # If nothing came back despite 200, show raw lines for diagnosis
                         if not full_response.strip():
-                            raw_dump = "\n".join(raw_lines[:30])
-                            add_log("WARN", f"Empty response. First 30 raw SSE lines:\n{raw_dump}")
+                            add_log("WARN", "Empty response from Ollama despite HTTP 200")
                             full_response = (
-                                "**No text received from the AI.** The proxy returned HTTP 200 but no text chunks.\n\n"
-                                "Enable **Debug logs** to inspect raw SSE lines."
+                                "**No response received from Ollama.**\n\n"
+                                "The model may still be loading. Wait a few seconds and try again.\n"
+                                "Enable **Debug logs** for details."
                             )
 
             except requests.exceptions.ConnectionError as ce:
                 add_log("ERROR", f"ConnectionError: {ce}")
                 full_response = (
-                    f"**Cannot connect to AI proxy at `{AI_BASE_URL}`.**\n\n"
-                    "Start the proxy:\n```\nnpm start\n```"
+                    f"**Cannot connect to Ollama at `{OLLAMA_URL}`.**\n\n"
+                    "Start it with:\n```\nollama serve\n```"
                 )
             except requests.exceptions.Timeout:
-                add_log("ERROR", "Request timed out after 60s")
-                full_response = "**Request timed out** (60s). The proxy may be overloaded — please try again."
+                add_log("ERROR", "Request timed out after 120s")
+                full_response = (
+                    "**Request timed out** (120s). The model may be too slow on this hardware.\n\n"
+                    f"Try a lighter model: `ollama pull gemma3:1b`"
+                )
             except Exception as ex:
                 tb = traceback.format_exc()
-                add_log("ERROR", f"Unexpected exception: {ex}\n{tb}")
-                full_response = (
-                    f"**Unexpected error:** `{ex}`\n\n"
-                    "Enable **Debug logs** for the full traceback."
-                )
+                add_log("ERROR", f"Exception: {ex}\n{tb}")
+                full_response = f"**Unexpected error:** `{ex}`"
 
             placeholder.markdown(full_response)
-
-            # Show debug inline if toggle is on
-            if show_debug:
-                with st.expander("Raw SSE lines from this response", expanded=False):
-                    st.code("\n".join(raw_lines[:50]) if raw_lines else "(none)", language="text")
 
         st.session_state.chat_history.append({"role": "assistant", "content": full_response})
 
