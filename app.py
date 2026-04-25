@@ -620,10 +620,54 @@ Keep responses clear, empathetic, and concise. Use bullet points for lists."""
         st.session_state.chat_history = []
     if "chat_logs" not in st.session_state:
         st.session_state.chat_logs = []
+    if "pending_input" not in st.session_state:
+        st.session_state.pending_input = None
 
     def add_log(level, msg):
         ts = time.strftime("%H:%M:%S")
         st.session_state.chat_logs.append(f"[{ts}] [{level}] {msg}")
+
+    def call_ollama(messages, placeholder):
+        """Call Ollama /api/chat with streaming and return full response text."""
+        payload = {
+            "model":    OLLAMA_MODEL,
+            "messages": messages,
+            "stream":   True,
+        }
+        add_log("INFO", f"POST {OLLAMA_URL}/api/chat  model={OLLAMA_MODEL}  msgs={len(messages)}")
+        t0 = time.time()
+        full_response = ""
+        chunk_count = 0
+
+        with requests.post(f"{OLLAMA_URL}/api/chat", json=payload, stream=True, timeout=120) as resp:
+            add_log("INFO", f"HTTP {resp.status_code}")
+            if resp.status_code != 200:
+                body = resp.text[:600]
+                add_log("ERROR", f"Non-200 body: {body}")
+                return f"**Error — HTTP {resp.status_code}**\n```\n{body}\n```"
+
+            for raw_line in resp.iter_lines():
+                if not raw_line:
+                    continue
+                line = raw_line.decode("utf-8") if isinstance(raw_line, bytes) else raw_line
+                try:
+                    data = json.loads(line)
+                    chunk = data.get("message", {}).get("content", "")
+                    if chunk:
+                        full_response += chunk
+                        chunk_count += 1
+                        placeholder.markdown(full_response + "▌")
+                    if data.get("done"):
+                        elapsed = time.time() - t0
+                        add_log("INFO", f"Stream done. chunks={chunk_count}  chars={len(full_response)}  time={elapsed:.2f}s")
+                        break
+                except json.JSONDecodeError as jex:
+                    add_log("WARN", f"JSON decode failed: {line[:120]}  err={jex}")
+
+        if not full_response.strip():
+            add_log("WARN", "Empty response from Ollama despite HTTP 200")
+            return "**No response received from Ollama.** Wait a moment and try again, or enable Debug logs for details."
+        return full_response
 
     # ── Header row ────────────────────────────────────────────
     hcol1, hcol2, hcol3 = st.columns([4, 1, 1])
@@ -635,6 +679,7 @@ Keep responses clear, empathetic, and concise. Use bullet points for lists."""
         if st.button("Clear", type="secondary", use_container_width=True):
             st.session_state.chat_history = []
             st.session_state.chat_logs = []
+            st.session_state.pending_input = None
             st.rerun()
 
     # ── Ollama connection status ───────────────────────────────
@@ -644,9 +689,7 @@ Keep responses clear, empathetic, and concise. Use bullet points for lists."""
             available_models = [m["name"] for m in ping.json().get("models", [])]
             model_present = any(OLLAMA_MODEL in m for m in available_models)
             add_log("INFO", f"Ollama reachable. Models: {available_models}")
-            if model_present:
-                st.success(f"Ollama running — model `{OLLAMA_MODEL}` ready.")
-            else:
+            if not model_present:
                 st.warning(
                     f"Ollama is running but `{OLLAMA_MODEL}` is not pulled yet. "
                     f"Run: `ollama pull {OLLAMA_MODEL}`\n\n"
@@ -657,13 +700,8 @@ Keep responses clear, empathetic, and concise. Use bullet points for lists."""
             st.error(f"Ollama returned HTTP {ping.status_code}.")
             add_log("ERROR", f"Ollama /api/tags returned {ping.status_code}")
     except Exception as ping_err:
-        st.error(
-            f"Cannot reach Ollama at `{OLLAMA_URL}`. "
-            "Install and start it: `ollama serve`"
-        )
+        st.error(f"Cannot reach Ollama at `{OLLAMA_URL}`. Start it with: `ollama serve`")
         add_log("ERROR", f"Ollama ping failed: {ping_err}")
-
-    st.caption(f"Model: `{OLLAMA_MODEL}`  |  Ollama: `{OLLAMA_URL}`  |  Educational use only.")
 
     # ── Debug panel ───────────────────────────────────────────
     if show_debug and st.session_state.chat_logs:
@@ -672,13 +710,20 @@ Keep responses clear, empathetic, and concise. Use bullet points for lists."""
 
     st.divider()
 
+    # ── Disclaimer — only when chat is empty ──────────────────
+    if not st.session_state.chat_history:
+        st.warning(
+            "Educational use only — not medical advice. "
+            "Always consult a qualified healthcare professional."
+        )
+
     # ── Render existing messages ──────────────────────────────
     for msg in st.session_state.chat_history:
         with st.chat_message(msg["role"]):
             st.markdown(msg["content"])
 
     # ── Starter suggestions (only when empty) ─────────────────
-    if not st.session_state.chat_history:
+    if not st.session_state.chat_history and st.session_state.pending_input is None:
         st.markdown("**Try asking:**")
         suggestions = [
             "I have chest pain when I exercise and my BP is 150/90",
@@ -689,109 +734,45 @@ Keep responses clear, empathetic, and concise. Use bullet points for lists."""
         cols = st.columns(2)
         for i, s in enumerate(suggestions):
             if cols[i % 2].button(s, key=f"sug_{i}", use_container_width=True):
-                st.session_state.chat_history.append({"role": "user", "content": s})
+                st.session_state.pending_input = s
                 add_log("INFO", f"Suggestion selected: {s[:60]}")
                 st.rerun()
 
-    # ── Chat input ────────────────────────────────────────────
+    # ── Resolve input — typed or from suggestion button ───────
     user_input = st.chat_input("Describe your symptoms, age, blood pressure, chest pain...")
-
     if user_input:
-        st.session_state.chat_history.append({"role": "user", "content": user_input})
-        add_log("INFO", f"User message: {user_input[:80]}")
+        st.session_state.pending_input = user_input
+
+    # ── Process pending input ─────────────────────────────────
+    if st.session_state.pending_input:
+        msg_text = st.session_state.pending_input
+        st.session_state.pending_input = None
+
+        st.session_state.chat_history.append({"role": "user", "content": msg_text})
+        add_log("INFO", f"User message: {msg_text[:80]}")
 
         with st.chat_message("user"):
-            st.markdown(user_input)
+            st.markdown(msg_text)
 
         with st.chat_message("assistant"):
             placeholder = st.empty()
-            full_response = ""
-
-            # Build Ollama messages (prepend system as first message)
             ollama_messages = [{"role": "system", "content": SYSTEM_PROMPT}]
             for m in st.session_state.chat_history:
                 ollama_messages.append({"role": m["role"], "content": m["content"]})
 
-            payload = {
-                "model":    OLLAMA_MODEL,
-                "messages": ollama_messages,
-                "stream":   True,
-            }
-
-            add_log("INFO", f"POST {OLLAMA_URL}/api/chat  model={OLLAMA_MODEL}  msgs={len(ollama_messages)}")
-
             try:
-                t0 = time.time()
-                with requests.post(
-                    f"{OLLAMA_URL}/api/chat",
-                    json=payload,
-                    stream=True,
-                    timeout=120,
-                ) as resp:
-                    add_log("INFO", f"HTTP {resp.status_code}")
-
-                    if resp.status_code != 200:
-                        body = resp.text[:600]
-                        add_log("ERROR", f"Non-200 body: {body}")
-                        full_response = (
-                            f"**Error — HTTP {resp.status_code}** from Ollama.\n\n"
-                            f"```\n{body}\n```"
-                        )
-                    else:
-                        chunk_count = 0
-                        for raw_line in resp.iter_lines():
-                            if not raw_line:
-                                continue
-                            line = raw_line.decode("utf-8") if isinstance(raw_line, bytes) else raw_line
-                            try:
-                                data = json.loads(line)
-                                chunk = data.get("message", {}).get("content", "")
-                                if chunk:
-                                    full_response += chunk
-                                    chunk_count += 1
-                                    placeholder.markdown(full_response + "▌")
-                                if data.get("done"):
-                                    add_log("INFO", f"Stream done. total_duration={data.get('total_duration')}")
-                                    break
-                            except json.JSONDecodeError as jex:
-                                add_log("WARN", f"JSON decode failed: {line[:120]}  err={jex}")
-
-                        elapsed = time.time() - t0
-                        add_log("INFO", f"Done. chunks={chunk_count}  chars={len(full_response)}  time={elapsed:.2f}s")
-
-                        if not full_response.strip():
-                            add_log("WARN", "Empty response from Ollama despite HTTP 200")
-                            full_response = (
-                                "**No response received from Ollama.**\n\n"
-                                "The model may still be loading. Wait a few seconds and try again.\n"
-                                "Enable **Debug logs** for details."
-                            )
-
+                reply = call_ollama(ollama_messages, placeholder)
             except requests.exceptions.ConnectionError as ce:
                 add_log("ERROR", f"ConnectionError: {ce}")
-                full_response = (
-                    f"**Cannot connect to Ollama at `{OLLAMA_URL}`.**\n\n"
-                    "Start it with:\n```\nollama serve\n```"
-                )
+                reply = f"**Cannot connect to Ollama at `{OLLAMA_URL}`.**\n\nStart it with:\n```\nollama serve\n```"
             except requests.exceptions.Timeout:
-                add_log("ERROR", "Request timed out after 120s")
-                full_response = (
-                    "**Request timed out** (120s). The model may be too slow on this hardware.\n\n"
-                    f"Try a lighter model: `ollama pull gemma3:1b`"
-                )
+                add_log("ERROR", "Timeout after 120s")
+                reply = "**Request timed out** (120s). Try a lighter model: `ollama pull gemma3:1b`"
             except Exception as ex:
-                tb = traceback.format_exc()
-                add_log("ERROR", f"Exception: {ex}\n{tb}")
-                full_response = f"**Unexpected error:** `{ex}`"
+                add_log("ERROR", f"Exception: {ex}\n{traceback.format_exc()}")
+                reply = f"**Unexpected error:** `{ex}`"
 
-            placeholder.markdown(full_response)
+            placeholder.markdown(reply)
 
-        st.session_state.chat_history.append({"role": "assistant", "content": full_response})
-
-    # ── Disclaimer ────────────────────────────────────────────
-    st.divider()
-    st.warning(
-        "This chat is for educational purposes only and does not constitute medical advice. "
-        "Always consult a qualified healthcare professional for diagnosis and treatment."
-    )
+        st.session_state.chat_history.append({"role": "assistant", "content": reply})
 
